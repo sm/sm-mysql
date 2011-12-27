@@ -7,7 +7,7 @@ then
 elif user is root
 then
   exec /bin/su - "${service_user}" \
-    -c "nohup ${sm_path}/bin/sm mysql start ${extension_args[*]} &"
+    -c "${sm_path}/bin/sm mysql start ${extension_args[*]} & disown"
 
 else
   log fail "mysql start may only be run as either root or ${service_user}"

@@ -1,7 +1,9 @@
 #!/bin/sh
 
-if [[ ! -S "/tmp/mysql.sock" ]]
-then ln -fs "/var/run/mysql/mysql.sock" "/tmp/mysql.sock" ; fi
+if [[ ! -L "/tmp/mysql.sock" ]]
+then
+  ln -fs "/var/run/mysql/mysql.sock" "/tmp/mysql.sock"
+fi
 
 if user is root
 then
