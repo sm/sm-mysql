@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# TODO: Requirements: gcc 4.2.1 or later, readline
-
 mysql_initialize()
 {
   trace_filter mysql || set +o xtrace
