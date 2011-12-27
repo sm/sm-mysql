@@ -1,22 +1,8 @@
 #!/bin/sh
 
-log "Initializing mysql data directory in $service_data_path"
+log "Initializing mysql data directory in ${service_data_path:="/var/db/${package_user:-"mysql"}/${package_version}"}"
 
-paths create "${service_data_path%\/*}"
-
-path chown "${package_user:="mysql"}:${package_user}" recursively  "${service_data_path%\/*}"
-
-path chmod 0700 recursively "$service_data_path"
-
-# --srcdir=\"${source_path}/${package_name}-${package_version}\"
-export PATH="${install_path}/bin:$PATH"
-
-if user is root
-then
-  exec /bin/su - "${package_user}" \
-    "${sm_path}/bin/sm mysql initialize"
-
-elif user is "${package_user}"
+if user is "${package_user:="mysql"}"
 then
   if ${sm_path}/pkg/active/bin/mysql_install_db \
     --user="${package_user}" \
@@ -27,6 +13,18 @@ then
   else
       log warn "There was an error ($?) initializing the database at ${service_data_path}"
   fi
+
+elif user is root
+then
+  paths create "${service_data_path}"
+
+  path chown "${package_user}:${package_user}" recursively "${service_data_path}"
+
+  path chmod 0700 recursively "${service_data_path}"
+
+  exec /bin/su - "${package_user}" \
+    -c "${sm_path}/bin/sm mysql initialize"
+
 else
   log error "The mysql database can only be initialized as the user ${package_user:-"mysql"}"
 fi
