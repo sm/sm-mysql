@@ -1,0 +1,42 @@
+#!/bin/sh
+
+if [[ ! -S "/tmp/mysql.sock" ]]
+then ln -fs "/var/run/mysql/mysql.sock" "/tmp/mysql.sock" ; fi
+
+if user is root
+then
+  exec /bin/su - ${service_user} -c "${sm_path}/bin/sm mysql configure"
+
+elif ! user is ${service_user:="mysql"}
+then
+  log error "mysql configure may only be run as root or the service user '${service_user}'"
+fi
+
+log "Configuring mysql server."
+
+paths create \
+  "/var/log/mysql" "/var/run/mysql" "/var/db/mysql" "/etc/mysql/" "$service_data_path"
+
+paths chown ${service_user}:${service_user} recursively \
+  "/var/log/mysql" "/var/run/mysql" "/var/db/mysql" "/etc/mysql/" "$service_data_path"
+
+# TODO: Switch to template install with data insertion and symlink to active.
+if file is missing "/etc/mysql/my.cnf"
+then
+  # TODO: Determine which .cnf file to grab based on system resources.
+  file="${source_path}/${package_dir}/support-files/my-medium.cnf"
+
+  if file is nonempty "${file}"
+  then
+    log "Installing my.cnf to /etc/mysql"
+    if ! path exists "/etc/mysql"
+    then path create "/etc/mysql" ; fi
+
+    file copy force \
+      from "${file}" \
+      to "/etc/mysql/my.cnf"
+  else
+    log error "${file} missing, not setting up /etc/mysql/my.cnf"
+  fi
+fi
+

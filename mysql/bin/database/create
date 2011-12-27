@@ -1,0 +1,18 @@
+#!/bin/sh
+
+typeset action
+action="create"
+
+if [[ "$USER" == "${service_user:="mysql"}" ]]
+then
+  exec "${sm_path}/pkg/active/bin/mysqladmin" ${action} ${extension_args[@]}
+
+elif user is root
+then
+  exec /bin/su - "${service_user}" \
+    -c "${sm_path}/bin/sm mysql database ${action} ${extension_args[*]}"
+
+else
+  log fail "mysql database ${action} may only be run as either root or the '${service_user}' user."
+fi
+

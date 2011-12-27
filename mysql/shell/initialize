@@ -1,0 +1,5 @@
+#!/bin/sh
+
+typeset -g sudo file
+typeset -ga profiles service_options
+

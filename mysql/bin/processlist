@@ -1,0 +1,18 @@
+#!/bin/sh
+
+typeset action
+action="processlist"
+
+if [[ "$USER" == "${service_user:="mysql"}" ]]
+then
+  exec "${sm_path}/pkg/active/bin/mysqladmin" ${action}
+
+elif user is root
+then
+  exec /bin/su - "${service_user}" \
+    -c "${sm_path}/bin/sm mysql ${action} ${extension_args[*]}"
+
+else
+  log fail "mysql ${action} may only be run as either root or the '${service_user}' user."
+fi
+

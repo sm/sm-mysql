@@ -1,0 +1,98 @@
+#!/bin/sh
+
+# TODO: Requirements: gcc 4.2.1 or later, readline
+
+percona_initialize()
+{
+  trace_filter percona || set +o xtrace
+
+  service_data_path="/var/db/${package_user:="mysql"}/active/"
+
+  timestamp="$(date +"%Y-%m-%dT%H:%M")"
+}
+
+percona_prefetch()
+{
+  trace_filter percona || set +o xtrace
+
+  config read file "defaults" key "release" from "percona" prefix "package"
+
+  # http://www.percona.com/redir/downloads/Percona-Server-5.5/Percona-Server-5.5.15-21.0/source/
+  # Percona-Server-5.5.15-rel21.0.tar.gz
+  package define \
+    base_url "http://www.percona.com/redir/downloads/Percona-Server-${package_version%.*}/Percona-Server-${package_version}-${package_release}/source" \
+    file "Percona-Server-${package_version}-rel${package_release}.tar.gz" \
+    dir "Percona-Server-${package_version}-rel${package_release}" \
+    target_path "${prefix_path}/${package_name}-${package_version}-${package_release}"
+}
+
+percona_configure()
+{
+  trace_filter percona || set +o xtrace
+
+  local major_version minor_version _command
+  typeset -g CFLAGS CXX CXXFLAGS >/dev/null 2>&1
+
+  CFLAGS="-O3"
+  CXX=gcc
+  CXXFLAGS="-O3 -felide-constructors -fno-exceptions -fno-rtti"
+  export CFLAGS CXX CXXFLAGS
+
+  major_version="${package_version%%.*}"
+  minor_version="${package_version%.*}"
+  minor_version="${minor_version#*.}"
+
+  # TODO: configure flags per OS.
+  # http://dev.mysql.com/doc/refman/5.5/en/source-configuration-options.html
+  if (( major_version == 5 && minor_version > 4 )) || (( major_version > 5 ))
+  then
+    if ! command exists cmake
+    then
+      log error "The 'cmake' command is required to build mysql 5.5+, please install cmake and then try again."
+    fi
+    # nonstandard cmake
+    configure_flags=(
+      -DCMAKE_INSTALL_PREFIX="${install_path}"
+      -DMYSQL_DATADIR="${service_data_path}"
+      -DMYSQL_TCP_PORT="${service_port}"
+      -DMYSQL_UNIX_ADDR="${service_socket}"
+      -DWITH_SSL="yes"
+      -DDEFAULT_CHARSET="utf8"
+      -DDEFAULT_COLLATION="utf8_general_ci"
+      -DWITH_UNIT_TESTS=OFF
+      -DWITH_READLINE=yes
+      -DENABLED_LOCAL_INFILE=1
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      -DBUILD_CONFIG=mysql_release
+      -DFEATURE_SET=community
+      -DWITH_EMBEDDED_SERVER=OFF
+      # -DWITH_EMBEDDED_SERVER=ON
+      # -DINSTALL_MANDIR="${package_man_path}"
+      # -DINSTALL_DOCDIR="${package_doc_path}"
+      # -DINSTALL_INFODIR="${package_info_path}"
+      # -DSYSCONFDIR="${confd_path???}"
+    )
+
+    configure_command="cmake . ${configure_flags[*]}"
+  else
+    true # standard GNU autotools, the default
+
+    configure_flags=(
+    --prefix="${install_path}"
+    --localstatedir="${service_data_path}"
+    --enable-assembler
+    --with-mysqld-ldflags=-all-static
+    --with-charset=utf8
+    --with-collation=utf8_general_ci
+    )
+    configure_command="./configure ${configure_flags[*]}"
+  fi
+
+  log debug package "__sm.package.configure: ${_command}"
+
+  ${=configure_command} > configure.log 2>&1 ||
+    __sm.package.error \
+    "Configuration of ${package_name} ${package_version} failed." \
+    "configure.log"
+}
+

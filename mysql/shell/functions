@@ -1,0 +1,164 @@
+#!/bin/sh
+
+# TODO: Requirements: gcc 4.2.1 or later, readline
+
+mysql_initialize()
+{
+  trace_filter mysql || set +o xtrace
+
+  service initialize
+
+  service_port=3306
+  service_socket="/var/run/${package_user:-"mysql"}/mysql.sock"
+  service_db_path="/var/db/${package_user:-"mysql"}"
+  service_data_path="/var/db/${package_user:-"mysql"}/active/"
+
+  timestamp="$(date +"%Y-%m-%dT%H:%M")"
+
+  service_options=(
+  --general-log-file="/var/log/mysql/mysqld.log"
+  --log-error="/var/log/mysql/mysqld.error.log"
+  --slow-query-log
+  --slow-query-log-file="/var/log/mysql/slow.log"
+  --pid-file="/var/run/mysql/mysqld.pid"
+  --port="${service_port}"
+  --socket="${service_socket}"
+  --datadir="${service_data_path}"
+  )
+}
+
+mysql_cli()
+{
+  config read file "defaults" key "version" prefix "package" from "mysql"
+
+  # TODO: process cli parameters
+}
+
+mysql_prefetch()
+{
+  trace_filter mysql || set +o xtrace
+
+  package define \
+    base_url "http://mysql.mirrors.pair.com/Downloads/MySQL-${package_version%.*}" \
+    target_path "${prefix_path}/${package_name}-${package_version}"
+}
+
+mysql_configure()
+{
+  trace_filter mysql || set +o xtrace
+
+  local major_version minor_version _command
+  typeset -g CFLAGS CXX CXXFLAGS >/dev/null 2>&1
+
+  CFLAGS="-O3"
+  CXX=gcc
+  CXXFLAGS="-O3 -felide-constructors -fno-exceptions -fno-rtti"
+  export CFLAGS CXX CXXFLAGS
+
+  major_version="${package_version%%.*}"
+  minor_version="${package_version%.*}"
+  minor_version="${minor_version#*.}"
+
+  # TODO: configure flags per OS.
+  # http://dev.mysql.com/doc/refman/5.5/en/source-configuration-options.html
+  if (( major_version == 5 && minor_version > 4 )) || (( major_version > 5 ))
+  then
+    if ! command exists cmake
+    then
+      log error "The 'cmake' command is required to build mysql 5.5+, please install cmake and then try again."
+    fi
+    # nonstandard cmake
+    configure_flags=(
+      -DCMAKE_INSTALL_PREFIX="${install_path}"
+      -DMYSQL_DATADIR="${service_data_path}"
+      -DMYSQL_TCP_PORT="${service_port}"
+      -DMYSQL_UNIX_ADDR="${service_socket}"
+      -DWITH_SSL="yes"
+      -DDEFAULT_CHARSET="utf8"
+      -DDEFAULT_COLLATION="utf8_general_ci"
+      -DWITH_UNIT_TESTS=OFF
+      -DWITH_READLINE=yes
+      -DENABLED_LOCAL_INFILE=1
+      # -DWITH_EMBEDDED_SERVER=ON
+      # -DINSTALL_MANDIR="${package_man_path}"
+      # -DINSTALL_DOCDIR="${package_doc_path}"
+      # -DINSTALL_INFODIR="${package_info_path}"
+      # -DSYSCONFDIR="${confd_path???}"
+    )
+
+    configure_command="cmake . ${configure_flags[*]}"
+  else
+    true # standard GNU autotools, the default
+
+    configure_flags=(
+    --prefix="${install_path}"
+    --localstatedir="${service_data_path}"
+    --enable-assembler
+    --with-mysqld-ldflags=-all-static
+    --with-charset=utf8
+    --with-collation=utf8_general_ci
+    )
+    configure_command="./configure ${configure_flags[*]}"
+  fi
+
+  log debug package "__sm.package.configure: ${_command}"
+
+  ${=configure_command} > configure.log 2>&1 ||
+    __sm.package.error \
+    "Configuration of ${package_name} ${package_version} failed." \
+    "configure.log"
+}
+
+mysql_postinstall()
+{
+  file copy \
+    from "${install_path}/scripts/mysql_install_db" \
+    to  "${install_path}/scripts/mysql_install_db"
+
+  user create unless exists system \
+    name "${service_user}" \
+    home "${service_db_path}"
+}
+
+mysql_upgrade()
+{
+  trace_filter mysql || set +o xtrace
+  #  First do an install
+  mysql_install
+
+  # Then do the upgrade parts
+  # TODO: Upgrade code
+  # move and symlink to preserve the old mysql.conf, pg_hba.conf files
+  # upgrade / move databases from old system.
+}
+
+mysql_uninstall()
+{
+  trace_filter mysql || set +o xtrace
+
+  local _paths
+
+  paths remove \
+    "${prefix_path}/${package_name}" \
+    "${prefix_path}/${package_name}-${package_version}"
+
+  files remove "${init_scripts_path}/mysql"
+
+  user remove "${package_user}"
+
+  if os is darwin ; then
+    _paths=(
+      /Library/StartupItems/MySQLCOM
+      /Library/PreferencePanes/My*
+      /Library/Reciepts/mysql*
+      /Library/Reciepts/MySQL*
+      /var/db/receipts/com.mysql.mysql*
+    )
+
+    paths remove ${_paths[@]}
+
+    sed -i -e 's#^MYSQLCOM.*$##' /etc/hostconfig
+  fi
+
+  log "Removal of ${package_name} complete."
+}
