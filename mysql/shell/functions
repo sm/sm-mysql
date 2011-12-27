@@ -113,7 +113,7 @@ mysql_postinstall()
 {
   file copy \
     from "${install_path}/scripts/mysql_install_db" \
-    to  "${install_path}/scripts/mysql_install_db"
+    to  "${install_path}/bin/mysql_install_db"
 
   user create unless exists system \
     name "${service_user}" \
