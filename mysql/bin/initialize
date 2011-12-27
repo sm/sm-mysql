@@ -1,6 +1,9 @@
 #!/bin/sh
 
-log "Initializing mysql data directory in ${service_data_path:="/var/db/${package_user:-"mysql"}/${package_version}"}"
+service_data_path="/var/db/${package_user:-"mysql"}/${package_version}"
+
+log "Initializing mysql data directory in"\
+  " ${service_data_path:="/var/db/${package_user:-"mysql"}/${package_version}"}"
 
 if user is "${package_user:="mysql"}"
 then

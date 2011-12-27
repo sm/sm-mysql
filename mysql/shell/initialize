@@ -1,5 +1,5 @@
 #!/bin/sh
 
-typeset -g sudo file
+typeset -g sudo file service_data_path
 typeset -ga profiles service_options
 
