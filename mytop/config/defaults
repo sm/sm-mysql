@@ -1,0 +1,3 @@
+version=1.6
+base_url=http://jeremy.zawodny.com/mysql/mytop
+archive_format=tar.gz
